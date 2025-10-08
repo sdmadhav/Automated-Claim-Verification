@@ -1,9 +1,8 @@
 # Automated-Claim-Verification
-Absolutely! Here’s a detailed 1000-word summary of our entire discussion, capturing your goals, the technical background, and a roadmap for building a state-of-the-art automated fact-checking system powered by LLM-based question generation and evidence retrieval.
 
 ---
 
-# Summary: Building an Automated Fact-Checking System Using LLMs and Evidence Retrieval
+# Building an Automated Fact-Checking System Using LLMs and Evidence Retrieval
 
 ## Context and Motivation
 
