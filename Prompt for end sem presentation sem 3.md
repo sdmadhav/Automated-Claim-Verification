@@ -1,7 +1,7 @@
 Create a comprehensive academic presentation for my Master's Terminal Project (MTP) on "Enhanced Numerical Claim Verification through Question-Constrained Decomposition." The presentation should be professional, research-oriented, and suitable for an academic defense.
 
 ## Project Context
-This is a fact-checking system that improves upon the QuantEMP baseline by addressing challenges in verifying comparison-based numerical claims through better question generation, diversification, and evidence retrieval strategies.
+This is a fact-checking system that improves upon the QuanTemp baseline by addressing challenges in verifying comparison-based numerical claims through better question generation, diversification, and evidence retrieval strategies.
 
 ## Presentation Structure
 
@@ -26,12 +26,12 @@ This is a fact-checking system that improves upon the QuantEMP baseline by addre
 - What are numerical claims? (claims containing quantities, comparisons, temporal references)
 - Why they're harder to verify than textual claims
 - Overview of existing work on numerical verification
-- Introduction to QuantEMP as the baseline approach
+- Introduction to QuanTemp as the baseline approach
 
 ### SLIDE 5-6: Motivation & Problem Statement
-**Slide 5: Error Analysis from QuantEMP**
+**Slide 5: Error Analysis from QuanTemp**
 Present a table or visualization showing:
-- QuantEMP's performance across claim categories (Conflicting, False, True)
+- QuanTemp's performance across claim categories (Conflicting, False, True)
 - Highlight the specific challenge: "Conflicting claims scored only 47.33 F1"
 - Quote: "Conflicting claims pose difficulty as they are partially incorrect, requiring retrieval of contrasting evidence for different aspects"
 
@@ -96,11 +96,11 @@ Create a comparison table:
 | Model | Training Data | Purpose |
 |-------|--------------|---------|
 | Model 1 (QCQ Only) | Our QCQ approach alone | Evaluate our method in isolation |
-| Model 2 (QCQ + QuantEMP) | Both approaches combined | Test complementary benefits |
-| Model 3 (QuantEMP Baseline) | Only QuantEMP data | Baseline comparison |
+| Model 2 (QCQ + QuanTemp) | Both approaches combined | Test complementary benefits |
+| Model 3 (QuanTemp Baseline) | Only QuanTemp data | Baseline comparison |
 
 **Slide 13: Dataset & Evaluation Metrics**
-- Dataset: Comparison-type claims from QuantEMP
+- Dataset: Comparison-type claims from QuanTemp
 - Train/Val/Test split proportions
 - Evaluation metrics:
   * Overall Accuracy
@@ -116,13 +116,13 @@ Model Performance on Test Set (n=255)
 
 Accuracy:
 Model 1 (QCQ Only):          34.51% ████████████
-Model 2 (QCQ + QuantEMP):    40.39% ██████████████
-Model 3 (QuantEMP Baseline): 46.27% ████████████████
+Model 2 (QCQ + QuanTemp):    40.39% ██████████████
+Model 3 (QuanTemp Baseline): 46.27% ████████████████
 
 Weighted F1-Score:
 Model 1 (QCQ Only):          28.26% █████████
-Model 2 (QCQ + QuantEMP):    33.41% ███████████
-Model 3 (QuantEMP Baseline): 45.04% ███████████████
+Model 2 (QCQ + QuanTemp):    33.41% ███████████
+Model 3 (QuanTemp Baseline): 45.04% ███████████████
 ```
 
 **Slide 15: Per-Class Performance Analysis**
@@ -153,14 +153,14 @@ Table format:
 
 ### SLIDE 17-18: Discussion
 **Slide 17: Key Findings**
-1. QuantEMP baseline (Model 3) achieves best overall performance (46.27% accuracy)
+1. QuanTemp baseline (Model 3) achieves best overall performance (46.27% accuracy)
 2. Combining approaches (Model 2) shows moderate improvement over QCQ alone
 3. All models struggle with "Conflicting" claims (best F1: 0.37)
 4. Models show high recall but low precision for "True" class
 5. "False" claims are relatively easier to classify
 
 **Slide 18: Analysis & Insights**
-- Why QuantEMP performs better:
+- Why QuanTemp performs better:
   * Larger/more diverse training data
   * Better calibrated for this specific task
 - Challenges in our approach:
@@ -195,7 +195,7 @@ Table format:
 - Opened avenues for improvement in compositional claim verification
 
 ### SLIDE 21: References
-- QuantEMP paper citation
+- QuanTemp paper citation
 - Related work on claim verification
 - Tools used (T5, RoBERTa, Sentence-Transformers, spaCy)
 
