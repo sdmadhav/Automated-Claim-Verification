@@ -583,8 +583,721 @@ For our research prototype: Start with high-precision entities (people, organiza
 
 ---
 
-## **ADDITIONAL PREPARATION**
+## **ADDITIONAL PREPARATION (Continued)**
 
 ### Questions Professors Will Definitely Ask:
 
 **1. "What's your train/test split? How many examples?"**
+
+**You MUST have these numbers:**
+- Total claims in comparison category: [X]
+- Train/Val/Test split: [typically 70/10/20 or 80/10/10]
+- Examples per class:
+  - True: [N1]
+  - False: [N2]
+  - Conflicting: [N3]
+- After QCQ generation: [Y total examples]
+
+**If you have class imbalance:**
+"Our dataset has class imbalance with conflicting being the minority class at [X%]. This contributes to the lower performance on this class. We tried [balanced sampling / class weights / oversampling] with [result]."
+
+**If you haven't tried handling imbalance:**
+"We haven't explicitly addressed class imbalance yet. Given the conflicting class is [X%] of data, applying techniques like SMOTE, class weighting, or focal loss could improve performance."
+
+---
+
+**2. "How long does your pipeline take? What's the computational cost?"**
+
+**Be ready with:**
+- Question generation time: ~X seconds per claim
+- Evidence retrieval time: ~Y seconds per question (depends on API calls)
+- Veracity prediction: ~Z milliseconds per claim (inference time)
+- Training time: [hours/days] on [GPU type]
+
+**Example answer:**
+"End-to-end pipeline for one claim:
+- Question generation: 2-3 seconds (T5 inference)
+- Evidence retrieval: 5-10 seconds (3 questions × 1-3 seconds per Google API call)
+- MMR reranking: <1 second
+- Veracity prediction: ~50ms
+
+Total: ~15-20 seconds per claim. Training takes [X hours] on [GPU type] for [Y epochs]."
+
+**If this is slow:**
+"The bottleneck is evidence retrieval due to API rate limits. For production, we'd use:
+- Cached evidence corpus (pre-indexed with FAISS)
+- Batch processing
+- Asynchronous API calls
+This could reduce per-claim time to ~2-3 seconds."
+
+---
+
+**3. "Did you try any other architectures? Why RoBERTa specifically?"**
+
+**Possible alternatives you could mention:**
+- **BERT**: RoBERTa is improved BERT
+- **ELECTRA**: More efficient pre-training, but similar performance
+- **DeBERTa**: Disentangled attention, state-of-the-art on many tasks
+- **T5**: Encoder-decoder, good for generation but unnecessary for classification
+- **GPT-based**: Unidirectional attention, not ideal for classification
+
+**Your answer:**
+"We chose RoBERTa because:
+1. **Proven performance**: State-of-the-art on GLUE benchmarks
+2. **Bidirectional context**: Better than GPT for classification
+3. **Comparison with QuanTemp**: They used RoBERTa variants, ensuring fair comparison
+4. **Resource constraints**: 125M parameters is manageable for our training setup
+
+**We didn't extensively experiment with other architectures** due to time and computational constraints. DeBERTa-v3 would be an interesting alternative as it shows ~2-3% improvements on similar tasks."
+
+**Critical**: Don't claim you tried things you didn't. Professors respect honesty about constraints.
+
+---
+
+**4. "Your improvement is 9% relative (0.47 → 0.51). What's the practical significance? When does this matter?"**
+
+**Strong answer:**
+"Let me contextualize this improvement:
+
+**In fact-checking context:**
+- False claims: High stakes (misinformation spread)
+- True claims: Lower stakes (correct info)
+- **Conflicting claims: CRITICAL** - these are subtle misinformation, hardest to detect
+
+Our 5% absolute improvement on conflicting class (0.37 → 0.39) represents:
+- **13.5% relative improvement** on the hardest, most important class
+- In a dataset of 1000 claims with 200 conflicting: ~4 more correctly identified
+- Real-world impact: These are the claims fact-checkers struggle with most
+
+**Why this matters:**
+Conflicting claims are often **sophisticated disinformation**:
+- Mixing true facts with false context
+- Cherry-picking data to mislead
+- Partial truths that require nuanced fact-checking
+
+Automated systems struggle here, requiring human review. Any improvement reduces human burden on the most time-consuming cases.
+
+**Benchmark context:**
+- Human agreement on conflicting cases: ~60-70% (Fleiss' kappa)
+- Our model: 39% F1 (still far from human performance)
+- **Path forward**: We're narrowing the gap, but significant room for improvement remains"
+
+---
+
+**5. "You generate questions with T5. Did you fine-tune it? On what data? Show me examples of generated questions."**
+
+**You MUST have:**
+1. **Training data for T5:**
+   - Source dataset: [SQuAD, Natural Questions, or custom]
+   - Number of examples: [X]
+   - Fine-tuning epochs: [Y]
+   - Validation perplexity/BLEU: [Z]
+
+2. **Example generated questions (have these PRINTED):**
+
+```
+Claim: "Tesla's revenue in 2023 was $96.8 billion, surpassing Ford's $158 billion."
+
+Generated Questions:
+1. What was Tesla's revenue in 2023?
+2. What was Ford's revenue in 2023?
+3. Which company had higher revenue in 2023?
+4. When was Tesla's revenue measured?
+5. How much revenue did Ford generate in 2023?
+```
+
+**Analysis of questions:**
+- Questions 1-2: Entity-specific (retrieve evidence for each company)
+- Question 3: Comparison (retrieve direct comparison evidence)
+- Question 4: Temporal verification (ensure correct year)
+- Question 5: Redundant with Q2 (but different phrasing may retrieve different evidence)
+
+**Question quality metrics you should know:**
+- Average questions per claim: [N]
+- Question diversity (avg pairwise similarity): [X]
+- Coverage (% of claim entities mentioned): [Y%]
+
+**If T5 is pre-trained, not fine-tuned:**
+"We use T5-base pre-trained on question generation tasks. We didn't fine-tune it ourselves due to [lack of domain-specific QG data / computational constraints]. Fine-tuning on numerical claim-specific question generation could improve question quality and is future work."
+
+---
+
+**6. "How do you evaluate question quality? Bad questions → bad evidence → bad verification."**
+
+**This is a critical methodological question. Possible evaluation approaches:**
+
+**Option 1: Manual evaluation (if you did this)**
+"We randomly sampled 50 claims and manually evaluated generated questions on:
+- **Relevance**: Does question target claim entities? [X% relevant]
+- **Diversity**: Are questions semantically distinct? [Y avg similarity]
+- **Answerability**: Can questions be answered from evidence? [Z% answerable]
+
+Inter-annotator agreement: Fleiss' kappa = [value]"
+
+**Option 2: Automatic metrics**
+- **Diversity**: Average pairwise cosine similarity (lower = more diverse)
+- **Entity coverage**: % of claim entities mentioned in questions
+- **Retrieved evidence quality**: Precision@3 of retrieved passages
+
+**Option 3: Extrinsic evaluation (best answer)**
+"We evaluate question quality **indirectly through end-task performance**. The fact that QCQ+Baseline outperforms Baseline suggests our questions retrieve complementary, useful evidence. 
+
+**Ablation study** (if you have it):
+- Random questions: [X F1]
+- Template questions: [Y F1]
+- Our T5 questions: [Z F1]
+
+This shows question quality matters."
+
+**If you haven't evaluated question quality:**
+"We haven't done explicit question quality evaluation, which is a limitation. We rely on end-task performance as a proxy. Proper evaluation would include:
+- Manual annotation of question relevance
+- Evidence precision analysis
+- Comparison with baseline question types
+
+This is important future work to understand **why** QCQ works."
+
+---
+
+**7. "Your system has 6 stages. Where do errors propagate from? What's the error analysis?"**
+
+**Pipeline error analysis (you NEED this):**
+
+Create a table like:
+
+| Stage | Error Type | Example | Frequency | Impact |
+|-------|-----------|---------|-----------|--------|
+| Claim Selection | Out-of-domain | Non-comparison claim included | 5% | Low |
+| Question Generation | Irrelevant question | "Who is X?" for numerical claim | 10% | Medium |
+| Question Selection (MMR) | Redundancy | Similar questions selected | 15% | Medium |
+| Evidence Retrieval | No relevant evidence | API returns off-topic passages | 20% | **High** |
+| Evidence Reranking | Wrong priority | Less relevant ranked higher | 12% | Medium |
+| Veracity Prediction | Misclassification | Conflicting labeled as False | 38% | **High** |
+
+**Key insights:**
+1. **Evidence retrieval is the biggest bottleneck** (20% error rate)
+2. **Veracity prediction struggles most** (especially for conflicting)
+3. **Cumulative error**: Errors compound through pipeline
+
+**Mitigation strategies:**
+- Better retrieval: Use dense retrieval (DPR) instead of BM25
+- Evidence validation: Filter out low-quality passages before reranking
+- Model robustness: Train with noisy evidence to handle retrieval errors
+
+**If you haven't done error analysis:**
+"We haven't systematically traced error propagation, which would require:
+- Manual annotation at each stage
+- Controlled experiments (perfect questions → how much improvement?)
+- Ablation studies removing each stage
+
+This is crucial for understanding bottlenecks and is priority future work."
+
+---
+
+**8. "You use Google Custom Search API. How many queries can you make? What if evidence isn't on the first page?"**
+
+**Be specific:**
+- **API limits**: 100 queries/day (free tier) or [X queries/day for paid]
+- **Results per query**: Top 10 results
+- **Coverage**: May miss evidence if not in top-10
+
+**Your answer:**
+"We use Google Custom Search API with [free/paid] tier:
+- Query limit: [X] per day
+- We retrieve top-[N] results per question (typically N=10)
+- Re-rank using semantic similarity to select top-3 passages
+
+**Limitations:**
+1. **Evidence availability**: If gold evidence is ranked >10, we miss it
+2. **Query formulation**: Simple keyword queries may not retrieve best evidence
+3. **Temporal issues**: Recent events may not be well-indexed
+
+**Why we still use it:**
+- Reflects real-world fact-checking (fact-checkers use search engines)
+- Scalable (no need to maintain evidence corpus)
+- Dynamic (up-to-date information)
+
+**Alternative**: Pre-indexed Wikipedia corpus (like FEVER dataset) would be:
+- **Pros**: Controlled, reproducible, no API limits
+- **Cons**: Static, may not have recent claims
+- **We chose**: API for flexibility, but acknowledge reproducibility concerns"
+
+---
+
+**9. "MMR has a lambda parameter for relevance vs diversity trade-off. How did you set it? Did you tune it?"**
+
+**MMR formula reminder:**
+MMR = λ × Sim(Q, D) - (1-λ) × max Sim(D, Dᵢ)
+
+**Possible answers:**
+
+**If you tuned λ:**
+"We performed grid search over λ ∈ {0.5, 0.6, 0.7, 0.8, 0.9}:
+- λ = 0.5: Too diverse, some irrelevant questions
+- λ = 0.7: **Best F1 (0.51)** - good balance
+- λ = 0.9: Too similar, redundant questions
+
+Validation curve: [you should have this plotted]"
+
+**If you used default λ = 0.7:**
+"We used λ = 0.7 based on common practice in diversified search literature. This gives:
+- 70% weight to relevance (questions must be related to claim)
+- 30% weight to diversity (questions should be distinct)
+
+We haven't extensively tuned this parameter. Hyperparameter optimization could find better λ, especially if optimal λ differs by claim type:
+- Simple claims: Higher λ (relevance matters more)
+- Complex claims: Lower λ (diversity matters more)
+
+This is future work."
+
+**Critical**: Don't pretend you did extensive tuning if you didn't. Say "we used standard value" or "we did limited tuning."
+
+---
+
+**10. "What happens if Google returns no relevant evidence for a question?"**
+
+**This is a robustness question. Your answer:**
+
+"Good question. Our pipeline handles this in multiple ways:
+
+**Case 1: Google returns results, but all irrelevant**
+- Semantic reranking assigns low scores to all passages
+- If all scores < threshold (e.g., 0.5 cosine similarity), we:
+  - Option A: Use empty evidence for that question (model learns "no evidence")
+  - Option B: Skip that question entirely
+  - **We do**: Option A - model input includes [QUESTION] [NO_EVIDENCE] tag
+
+**Case 2: Google API fails (rate limit, error)**
+- Fallback to cached evidence from Wikipedia snapshot
+- Or mark as "insufficient evidence" and abstain from prediction
+
+**Model behavior with missing evidence:**
+- RoBERTa input: [CLS] Claim [SEP] Q1 E1 [SEP] Q2 [SEP] Q3 E3 [SEP]
+  - Question 2 has no evidence (just [SEP] between Q2 and Q3)
+- Model must learn to handle partial evidence
+
+**Evaluation impact:**
+- In test set, [X%] of questions retrieved no relevant evidence
+- This contributes to overall performance ceiling
+
+**Future work:**
+- Train with explicit "no evidence" tokens
+- Use evidence validation model before classification
+- Multi-hop retrieval: If first query fails, reformulate"
+
+---
+
+## **CONCEPTUAL QUESTIONS - DEEP UNDERSTANDING**
+
+These questions test if you truly understand your work or just implemented it:
+
+**Q1: "Explain intuitively why question diversity helps verification."**
+
+**Deep answer:**
+"Consider claim: 'India's GDP grew faster than China's in 2023'
+
+**Baseline approach (yes/no question):**
+- Q: 'Did India's GDP grow faster than China in 2023?'
+- Retrieved evidence: 'India GDP growth 7.2%, China 5.2%'
+- **Problem**: Single evidence source, binary answer
+
+**Our diverse questions:**
+- Q1: 'What was India's GDP growth rate in 2023?'
+- Q2: 'What was China's GDP growth rate in 2023?'  
+- Q3: 'Which country had higher GDP growth in 2023?'
+
+**Why diversity helps:**
+
+1. **Evidence triangulation**: Multiple evidence sources reduce dependency on single source accuracy
+   - E1: 'India grew 7.2%' (IMF report)
+   - E2: 'China grew 5.2%' (World Bank)
+   - E3: 'India outpaced China' (comparative analysis)
+   - If one source is wrong, others provide correction
+
+2. **Contrasting evidence for conflicting class:**
+   - If claim is partially false (e.g., data is from Q1 only, not full year)
+   - Q1 might retrieve annual data: 'India annual growth 7.2%'
+   - Q3 might retrieve quarterly data: 'India Q1 growth 5.1% vs China 5.5%'
+   - **Contradiction signals conflicting class**
+
+3. **Entity-specific vs relational:**
+   - Entity questions (Q1, Q2): Get absolute values
+   - Relational question (Q3): Get comparison
+   - Model can verify both facts AND relationship independently
+
+4. **Different retrieval results:**
+   - Different phrasings match different documents
+   - Broader evidence coverage reduces retrieval failure impact
+
+**Analogy**: It's like a detective asking multiple witnesses different questions rather than asking one witness a yes/no question. You get fuller picture and can detect inconsistencies."
+
+---
+
+**Q2: "Why does your QCQ-only model fail completely on conflicting class?"**
+
+**Deep analysis:**
+
+"This failure reveals the nature of conflicting claims and our data generation process.
+
+**Hypothesis 1: Binary evidence pattern**
+QCQ generates entity-specific questions:
+- 'What was X's value?'
+- 'What was Y's value?'
+
+For **True claims**: Both pieces of evidence support → Strong True signal
+For **False claims**: Evidence contradicts → Strong False signal
+For **Conflicting claims**: Some evidence supports, some refutes
+
+**Problem**: Our training data likely has cases where:
+- Strong supporting evidence → Model predicts True
+- Strong refuting evidence → Model predicts False
+- **Mixed evidence → Model picks stronger signal (likely False) instead of learning "Conflicting"**
+
+**Hypothesis 2: Label imbalance in QCQ data**
+Our question generation might naturally create:
+- Clear True cases: 60%
+- Clear False cases: 30%
+- Ambiguous/Conflicting: 10% ← **Insufficient examples**
+
+Model never sees enough conflicting examples to learn the class.
+
+**Hypothesis 3: Evidence quality difference**
+Diverse questions may retrieve higher-quality, less ambiguous evidence:
+- Baseline: Broader queries → Noisier evidence → Natural conflicting cases
+- QCQ: Specific questions → Clearer evidence → Less ambiguous cases
+
+**Why combined model works (0.39 F1):**
+Baseline data provides:
+- Examples of genuine conflicting patterns
+- Training signal for "strong evidence both ways = conflicting"
+
+QCQ data provides:
+- Better True/False discrimination
+- Evidence diversity that helps when combined with conflicting patterns
+
+**Lesson**: Conflicting class requires specific data characteristics (evidence contrast), not just evidence diversity. This is a crucial insight for future work."
+
+---
+
+**Q3: "Your architecture concatenates everything and relies on RoBERTa attention. Why not use a more structured approach like graph neural networks or explicit reasoning modules?"**
+
+**Thoughtful answer:**
+
+"You're absolutely right that our architecture is relatively simple. Let me address why we chose this and what alternatives exist:
+
+**Why concatenation + RoBERTa:**
+
+**Pros:**
+1. **Proven baseline**: Establishes whether our data generation (QCQ) adds value before architectural complexity
+2. **End-to-end learning**: No need to manually design reasoning patterns
+3. **Computational efficiency**: Single forward pass, no multi-stage inference
+4. **Direct comparison**: QuanTemp uses similar architecture, ensuring fair comparison
+
+**Cons:**
+1. **No explicit reasoning**: Model may not learn multi-hop reasoning
+2. **No evidence relationships**: Treats evidence independently
+3. **Limited interpretability**: Can't trace reasoning path
+
+**Alternative approaches we considered:**
+
+**1. Graph Neural Networks:**
+```
+Claim (node) ← Q1 (node) ← E1 (node)
+              ← Q2 (node) ← E2 (node)
+              ← Q3 (node) ← E3 (node)
+```
+- **Pros**: Explicit evidence relationships, can model contradiction/support between evidence
+- **Cons**: Requires defining graph structure (how do E1 and E2 relate?), more complex training
+- **When useful**: If evidence pieces have explicit logical dependencies
+
+**2. Reasoning modules (e.g., Neural Module Networks):**
+```
+Retrieve(Q1) → Compare(E1, Claim) → 
+Retrieve(Q2) → Compare(E2, Claim) →
+Aggregate → Classify
+```
+- **Pros**: Compositional reasoning, interpretable steps
+- **Cons**: Requires designing modules, harder to train end-to-end
+- **When useful**: If reasoning steps are well-defined (like mathematical claims)
+
+**3. Memory networks / Attention-based aggregation:**
+```
+Evidence → Memory slots
+Claim → Query memory
+Attention-weighted aggregation → Classify
+```
+- **Pros**: Learns to attend to relevant evidence, some interpretability
+- **Cons**: Still limited explicit reasoning
+- **When useful**: When some evidence is definitely more important
+
+**Our choice:**
+We started simple to isolate the contribution of QCQ data generation. **If QCQ + simple model works, then QCQ + complex model should work better.**
+
+**Future work**: Now that we've shown QCQ helps with simple architecture, next step is:
+1. Add attention visualization to see if model learns cross-evidence reasoning
+2. If not, try explicit reasoning modules
+3. Compare: Does architectural improvement or data improvement matter more?
+
+**Philosophy**: In ML research, it's valuable to separate **data contributions** from **model contributions**. Our work focuses on former."
+
+---
+
+**Q4: "How do you know your improvements aren't just from having more training data (Model 2 has QCQ + Baseline data)?"**
+
+**Critical question - your answer must be precise:**
+
+"Excellent question. This is a **crucial control** we need to address.
+
+**Data size analysis:**
+- Model 3 (Baseline): N examples
+- Model 1 (QCQ Only): M examples
+- Model 2 (Combined): N + M examples
+
+**Possible confound**: Model 2 improvement could be just from data quantity, not quality.
+
+**How to disentangle:**
+
+**Experiment A: Balanced data size**
+- Model 3: N examples (baseline)
+- Model 2: N examples (N/2 baseline + N/2 QCQ)
+- If Model 2 > Model 3, it's **quality**, not quantity
+
+**Experiment B: Augmented baseline**
+- Model 3: N examples (baseline)
+- Model 3-Aug: N+M examples (baseline data, augmented with paraphrasing/backtranslation)
+- Model 2: N+M examples (N baseline + M QCQ)
+- If Model 2 > Model 3-Aug, improvement is from **QCQ's specific diversity**, not just more data
+
+**Experiment C: Data efficiency**
+- Plot learning curves:
+  - Model 3 performance vs training data size
+  - Model 2 performance vs training data size
+- If Model 2 reaches higher performance with same data size, it's **better data**
+
+**What we did:** [BE HONEST HERE]
+
+**If you did balanced data size:**
+"We ensured Model 2 uses N/2 from each source (total N), same as Model 3. The 0.47 → 0.51 improvement is with **equal data**, so it's from complementary information, not quantity."
+
+**If you didn't:**
+"We haven't controlled for data size, which is a limitation. Model 2 has ~[X%] more data, which could explain part of the improvement. 
+
+To estimate this effect:
+- Model 3 learning curve suggests [Y%] improvement from doubling data
+- Model 2 shows [Z%] improvement
+- If Z > Y, the extra benefit is from QCQ quality
+
+We should run Experiment A to definitively answer this. This is critical for publication."
+
+---
+
+## **DIFFICULT CONCEPTUAL TRAPS**
+
+Professors may ask questions designed to test if you're thinking critically:
+
+**TRAP Q1: "Your title is about 'question diversity,' but you only compare against one baseline. How do you know diversity specifically matters, and not just question quality?"**
+
+**What they're testing**: Do you understand that "diversity" is one dimension, but you haven't isolated it?
+
+**Good answer:**
+"You're right - we've confounded **diversity** with **question quality** and **question type** (WH vs yes/no).
+
+To isolate diversity's contribution, we'd need:
+
+**Ablation study:**
+1. **Baseline**: Yes/No questions only
+2. **WH questions (low diversity)**: All WH questions, but selected for relevance (high λ), so redundant
+3. **WH questions (high diversity)**: Our QCQ approach with MMR
+4. **Control quality**: Ensure all questions are high-quality (manually filter)
+
+If (3) > (2), and quality is controlled, **diversity specifically matters**.
+
+**Current evidence for diversity:**
+- MMR selection explicitly balances relevance vs diversity
+- Combining QCQ with Baseline helps (suggests complementary information)
+- But we haven't **isolated** diversity from other factors
+
+**Honest assessment**: Our work shows **QCQ approach (WH questions + diversity) outperforms yes/no baseline**. Whether it's the question type, diversity, or both requires deeper ablation. Title might be more accurate as 'Question Diversification' rather than 'Question Diversity.'"
+
+**This honest, self-critical answer will impress professors more than defending weakly.**
+
+---
+
+**TRAP Q2: "You use semantic similarity for evidence reranking. But semantic similarity might rank contradictory evidence as dissimilar. Doesn't this hurt conflicting class?"**
+
+**What they're testing**: Do you understand your method's potential contradictions?
+
+**Good answer:**
+"This is an insightful observation and potential flaw in our approach.
+
+**The issue:**
+- Claim: 'X is true'
+- Evidence A (supporting): 'X is true' → High similarity → Ranked high ✓
+- Evidence B (refuting): 'X is false' → **Low similarity** → Ranked low ✗
+
+For conflicting class, we **need** both A and B, but semantic similarity pushes B down.
+
+**Why we might still rank B:**
+- Semantic similarity isn't just word overlap
+- 'X is true' and 'X is false' are semantically similar (both about X)
+- Antonyms (true/false) are close in embedding space (both describe truth value)
+
+**Empirical check** (you should do this):
+Analyze retrieved evidence for conflicting claims:
+- Do we retrieve contrasting evidence?
+- What's the similarity score of refuting evidence?
+
+**If similarity scores are low (<0.6):** Our reranking IS hurting conflicting class
+**If similarity scores are moderate (0.6-0.8):** Semantic models capture semantic relatedness, including contradiction
+
+**Better approach (future work):**
+- **Natural Language Inference (NLI) model**: Classify evidence as Entailment/Contradiction/Neutral
+- For conflicting claims: Retrieve top-K entailment AND top-K contradiction evidence
+- This explicitly seeks contrasting evidence
+
+**Current mitigation:**
+- We retrieve top-K (large K) before reranking
+- MMR question diversity increases chance of finding contrasting evidence through different questions
+- But you're right - semantic similarity alone may not be optimal for conflicting class
+
+**This is a valuable insight for improvement.**"
+
+---
+
+**TRAP Q3: "You claim question diversity helps. But couldn't you just retrieve more evidence for fewer questions instead of diverse questions?"**
+
+**What they're testing**: Have you thought about alternative hypotheses?
+
+**Good answer:**
+"Great question - this tests **breadth (diverse questions) vs depth (more evidence per question)**.
+
+**Alternative approach:**
+- Generate 3 questions, retrieve top-10 evidence each = 30 evidence pieces
+- vs Our approach: 10 questions, retrieve top-3 each = 30 evidence pieces
+
+Both use same total evidence, but distributed differently.
+
+**Why we believe diversity helps:**
+
+**Breadth (our approach):**
+- Different questions match different documents (query formulation matters)
+- Questions target different aspects of claim (entities, relationships, temporal)
+- Reduces impact of single query failure
+
+**Depth (alternative):**
+- More evidence per question increases redundancy
+- Top-10 results often have diminishing relevance (rank 8-10 may be noise)
+- Doesn't cover different aspects of claim
+
+**Empirical test** (you could propose):
+- **Experiment**: Fix total evidence budget (e.g., 30 pieces)
+  - Condition A: 3 questions × 10 evidence
+  - Condition B: 5 questions × 6 evidence
+  - Condition C: 10 questions × 3 evidence (ours)
+- Measure: Evidence diversity (pairwise similarity), coverage (% claim entities mentioned), final F1
+
+**Hypothesis**: Diminishing returns from depth, but linear/superlinear returns from breadth (up to a point).
+
+**Why we didn't test this:** Computational constraints, but it's excellent future work.
+
+**Concession**: You're right that we haven't proven diversity > depth with same evidence budget. Our comparison is against different baseline (yes/no questions), not depth vs breadth directly."
+
+---
+
+## **PRESENTATION DELIVERY TIPS**
+
+**1. Timing - Practice to 15-18 minutes for 20-min slot**
+- Leave 5 minutes for questions after each section
+- Professors WILL interrupt
+
+**2. Slide 7 (Results) - Spend most time here**
+- This is your contribution
+- Address the 0.00 proactively - don't wait for them to ask
+
+**3. Have backup slides ready (in appendix):**
+- Confusion matrices (all 3 models)
+- Learning curves
+- Example claims with generated questions
+- Error analysis examples
+- Hyperparameter settings table
+
+**4. Print and bring:**
+- Full confusion matrices
+- 10-15 example claims with generated questions and retrieved evidence
+- Your paper/report with page numbers (so you can quickly reference)
+
+**5. Body language:**
+- When you don't know something: "That's a great question. We haven't explored that yet because [reason]. It's definitely important future work."
+- Never say "I don't know" alone - always add context
+
+**6. Handling hostile questions:**
+Professor: "Your improvements are marginal and your QCQ model completely fails on conflicting class. Why should we care about this work?"
+
+**Bad response:** Getting defensive, making excuses
+
+**Good response:** 
+"You're right that the absolute improvements are modest and we have a significant failure mode. Let me put this in context:
+
+1. **What we've shown**: Question diversification provides measurable, complementary benefits when combined with existing methods. This establishes the principle.
+
+2. **The failure (0.00 conflicting F1) is actually informative**: It reveals that conflicting class requires specific data characteristics beyond just diversity. This is a contribution to understanding what makes conflicting claims hard.
+
+3. **Practical value**: Even modest improvements on conflicting class (the hardest category) matter for fact-checkers, as these are the cases requiring most human effort.
+
+4. **Research trajectory**: This is exploratory work establishing that question-level diversity is a useful direction. Next steps would be understanding why it works, addressing the failure modes, and scaling the approach.
+
+We're not claiming to have solved numerical fact verification - we're proposing and evaluating one technique that shows promise when combined with existing methods."
+
+---
+
+## **FINAL PREPARATIONS CHECKLIST**
+
+**Numbers you MUST know:**
+- [ ] Dataset size (total claims, train/val/test split)
+- [ ] Class distribution (% True, False, Conflicting)
+- [ ] Training time and computational resources
+- [ ] Average questions generated per claim
+- [ ] Evidence retrieval success rate
+- [ ] MMR lambda value (and why)
+- [ ] Confidence intervals / statistical significance (if you have it)
+
+**Visualizations to prepare:**
+- [ ] Confusion matrices (all 3 models) - PRINTED
+- [ ] Learning curves (if available)
+- [ ] Question diversity scatter plot (similarity vs relevance)
+- [ ] Example claims with questions (5-10 examples) - PRINTED
+
+**Conceptual clarity:**
+- [ ] Can you explain MMR formula and why each term matters?
+- [ ] Can you draw your model architecture on board?
+- [ ] Can you explain the difference between macro and weighted F1?
+- [ ] Can you walk through an example claim end-to-end?
+
+**Questions to prepare answers for:**
+- [ ] "Why is your QCQ-only model F1 0.00 for conflicting?"
+- [ ] "How do you ensure statistical significance?"
+- [ ] "Why not use a graph neural network?"
+- [ ] "What's your error analysis show?"
+- [ ] "How does this compare to state-of-the-art?"
+
+---
+
+## **ONE PRACTICE RUN-THROUGH**
+
+**Do this OUT LOUD tonight:**
+
+1. Explain your entire project to a friend/roommate in 20 minutes
+2. They interrupt with "why?" after every claim you make
+3. Record yourself - listen for filler words ("um", "like", "basically")
+4. Time each slide - adjust if spending too much time on background
+
+**Mental model for presentation:**
+- Slides 1-2: Context (3 minutes) - "Here's the problem"
+- Slide 3: Motivation (2 minutes) - "Here's why it's hard"
+- Slides 4-5: Approach (5 minutes) - "Here's what we did"
+- **Slide 6-7: Results (8 minutes)** - "Here's what we found" ← MOST TIME
+- Slide 8: Future (2 minutes) - "Here's what's next"
+
+**You've got this!** The fact that you're preparing this thoroughly means you'll do great. Professors respect well-thought-out work, even if it has limitations, as long as you're honest and critical about them.
+
+Good luck! 🎯
